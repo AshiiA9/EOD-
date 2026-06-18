@@ -68,7 +68,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <div id="office" class="tab">
 <div class="card">
 <h2>Customer Concerns / Notes Screenshots</h2>
-<p>Best order: upload Job Details screenshot first, then Notes screenshot for that same customer. Repeat for each customer.</p>
+<p>Upload Job Details screenshot first, then Notes screenshot for that same customer. Repeat for each customer.</p>
 <input id="concernUpload" type="file" accept="image/*" multiple>
 <button class="btn" onclick="runConcernOCR()">Extract Customer Concerns</button>
 <div id="concernStatus" class="status"></div>
@@ -288,57 +288,74 @@ function looksLikeJobDetails(block){
 return block.toLowerCase().includes("job details") && extractCustomer(block);
 }
 
-function extractCustomerConcernsOnly(block){
-const lines=block.split("\n").map(cleanLine).filter(Boolean);
-const concerns=[];
-let capturing=false;
-
-for(const raw of lines){
-let line=raw.trim();
-let lower=line.toLowerCase();
-
-if(lower.includes("customer concern")){
-capturing=true;
-line=line.replace(/-?customer concern[s]?:?/i,"").replace(/^[-•*·\s]+/,"").trim();
-if(line && !isJunk(line)) concerns.push(cleanConcernLine(line));
-continue;
-}
-
-if(capturing){
-const stop =
-lower.includes("ashton arellano") ||
-lower.includes("anthony") ||
-lower.includes("kyndal") ||
-lower.includes("june ") ||
-lower.includes("may ") ||
-lower.includes("service type") ||
-lower.includes("materials applied") ||
-lower.includes("service completed") ||
-lower.includes("top note") ||
-lower.includes("todo list") ||
-lower.includes("invoice") ||
-lower.includes("show change logs") ||
-lower.includes("attach a photo") ||
-lower.includes("notes") ||
-lower.includes("job details");
-
-if(stop) break;
-
-if(line.length>2 && line.length<180 && !isJunk(line)){
-concerns.push(cleanConcernLine(line));
-}
-}
-}
-
-return [...new Set(concerns)].filter(Boolean);
-}
-
 function cleanConcernLine(line){
 return line
 .replace(/^[-•*·«»\s]+/,"")
 .replace(/[«»]/g,"")
 .replace(/\s+/g," ")
 .trim();
+}
+
+function isConcernStopLine(line){
+const l=line.toLowerCase();
+
+return (
+l.includes("property estimation") ||
+l.includes("hy edit") ||
+l.includes("tasks") ||
+l.includes("units") ||
+l.includes("invoice") ||
+l.includes("draft") ||
+l.includes("this invoice repeats") ||
+l.includes("show change logs") ||
+l.includes("attach a photo") ||
+l.includes("top note") ||
+l.includes("todo list") ||
+l.includes("materials applied") ||
+l.includes("service completed") ||
+l.includes("service type") ||
+l.includes("ashton arellano") ||
+l.includes("anthony") ||
+l.includes("kyndal") ||
+l.includes("june ") ||
+l.includes("may ") ||
+l.includes("job details")
+);
+}
+
+function extractCustomerConcernBoxOnly(block){
+const lines=block.split("\n").map(cleanLine).filter(Boolean);
+const concerns=[];
+let capture=false;
+
+for(const raw of lines){
+let line=raw.trim();
+let lower=line.toLowerCase();
+
+if(!capture && lower.includes("customer concern")){
+capture=true;
+
+line=line
+.replace(/[-•*·\s]*customer concern[s]?:?/i,"")
+.trim();
+
+if(line && !isJunk(line) && !isConcernStopLine(line)){
+concerns.push(cleanConcernLine(line));
+}
+
+continue;
+}
+
+if(capture){
+if(isConcernStopLine(line)) break;
+
+if(line.length>1 && line.length<180 && !isJunk(line)){
+concerns.push(cleanConcernLine(line));
+}
+}
+}
+
+return [...new Set(concerns)].filter(Boolean);
 }
 
 function generateOfficeNote(){
@@ -367,7 +384,7 @@ i++;
 customer=matchCustomerByTimes(extractTimes(blocks[i]));
 }
 
-const concerns=extractCustomerConcernsOnly(noteBlock);
+const concerns=extractCustomerConcernBoxOnly(noteBlock);
 
 if(concerns.length){
 found=true;
