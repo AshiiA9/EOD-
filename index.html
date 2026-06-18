@@ -281,60 +281,64 @@ if(score>bestScore){
 bestScore=score;
 best=stop.customer;
 }}
-return bestScore>=2 ? best : "Unknown Customer";
+return bestScore>=1 ? best : "Unknown Customer";
 }
 
 function looksLikeJobDetails(block){
 return block.toLowerCase().includes("job details") && extractCustomer(block);
 }
 
-function bulletClean(line){
-return line
-.replace(/^[•\-\*\·\u2022«»"'\s]+/g,"")
-.replace(/[«»]/g,"")
-.replace(/\s+/g," ")
-.trim();
-}
-
-function shouldStopBullet(line){
-const l=line.toLowerCase();
-return l.includes("ashton arellano") || l.includes("anthony") || l.includes("service type") ||
-l.includes("materials applied") || l.includes("service completed") || l.includes("top note") ||
-l.includes("todo list") || l.includes("invoice") || l.includes("draft") || l.includes("tasks") ||
-l.includes("units") || l.includes("this invoice repeats") || l.includes("property estimation") ||
-l.includes("show change logs") || l.includes("attach a photo");
-}
-
-function extractBulletConcerns(block){
+function extractCustomerConcernsOnly(block){
 const lines=block.split("\n").map(cleanLine).filter(Boolean);
-const bullets=[];
-let current="";
+const concerns=[];
+let capturing=false;
 
 for(const raw of lines){
-const line=raw.trim();
-const isBullet=/^[\s]*[•\-\*\·\u2022«]/.test(line);
+let line=raw.trim();
+let lower=line.toLowerCase();
 
-if(isBullet){
-if(current) bullets.push(current.trim());
-const cleaned=bulletClean(line);
-if(cleaned && !shouldStopBullet(cleaned) && !isJunk(cleaned)){
-current=cleaned;
-}else{
-current="";
-}
+if(lower.includes("customer concern")){
+capturing=true;
+line=line.replace(/-?customer concern[s]?:?/i,"").replace(/^[-•*·\s]+/,"").trim();
+if(line && !isJunk(line)) concerns.push(cleanConcernLine(line));
 continue;
 }
 
-if(current && line.length>2 && line.length<80 && !shouldStopBullet(line) && !isJunk(line)){
-current+=" "+bulletClean(line);
+if(capturing){
+const stop =
+lower.includes("ashton arellano") ||
+lower.includes("anthony") ||
+lower.includes("kyndal") ||
+lower.includes("june ") ||
+lower.includes("may ") ||
+lower.includes("service type") ||
+lower.includes("materials applied") ||
+lower.includes("service completed") ||
+lower.includes("top note") ||
+lower.includes("todo list") ||
+lower.includes("invoice") ||
+lower.includes("show change logs") ||
+lower.includes("attach a photo") ||
+lower.includes("notes") ||
+lower.includes("job details");
+
+if(stop) break;
+
+if(line.length>2 && line.length<180 && !isJunk(line)){
+concerns.push(cleanConcernLine(line));
+}
 }
 }
 
-if(current) bullets.push(current.trim());
+return [...new Set(concerns)].filter(Boolean);
+}
 
-return [...new Set(bullets)]
-.filter(x=>x.length>2)
-.map(x=>x.replace(/\s+([.,])/g,"$1"));
+function cleanConcernLine(line){
+return line
+.replace(/^[-•*·«»\s]+/,"")
+.replace(/[«»]/g,"")
+.replace(/\s+/g," ")
+.trim();
 }
 
 function generateOfficeNote(){
@@ -355,23 +359,26 @@ let noteBlock=blocks[i];
 
 if(looksLikeJobDetails(blocks[i])){
 customer=extractCustomer(blocks[i]);
-if(blocks[i+1]){noteBlock=blocks[i+1]; i++;}
+if(blocks[i+1]){
+noteBlock=blocks[i+1];
+i++;
+}
 }else{
 customer=matchCustomerByTimes(extractTimes(blocks[i]));
 }
 
-const bullets=extractBulletConcerns(noteBlock);
+const concerns=extractCustomerConcernsOnly(noteBlock);
 
-if(bullets.length){
+if(concerns.length){
 found=true;
 note+=`${customer || "Unknown Customer"}:\n`;
-bullets.forEach(b=>note+=`• ${b}\n`);
+concerns.forEach(c=>note+=`• ${c}\n`);
 note+="\n";
 }
 }
 
 if(!found){
-note+="No bullet-point customer concerns were clearly detected.";
+note+="No customer concerns were clearly detected under Customer Concern.";
 }
 
 document.getElementById("officeOutput").value=note.trim();
