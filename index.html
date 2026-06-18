@@ -125,7 +125,7 @@ textarea{
 <div id="route" class="tab active">
   <div class="card">
     <h2>End-of-Day Route Screenshots</h2>
-    <p>Upload Job Details screenshots only. This section pulls only customer name and service type.</p>
+    <p>Upload Job Details screenshots only. This section pulls customer name and service type. Times are only used in the background to tell duplicate stops apart.</p>
     <input id="routeUpload" type="file" accept="image/*" multiple>
     <button class="btn" onclick="runRouteOCR()">Extract Route Stops</button>
     <div id="routeStatus" class="status"></div>
@@ -147,7 +147,7 @@ textarea{
 <div id="office" class="tab">
   <div class="card">
     <h2>Customer Concerns / Notes Screenshots</h2>
-    <p>Upload the Notes screenshots here. The app will use the top check-in/check-out times to match the notes to the customer from the route screenshots.</p>
+    <p>Upload Notes screenshots here. The app uses check-in/check-out times to match notes back to the route customer.</p>
     <input id="concernUpload" type="file" accept="image/*" multiple>
     <button class="btn" onclick="runConcernOCR()">Extract Customer Concerns</button>
     <div id="concernStatus" class="status"></div>
@@ -371,7 +371,7 @@ function buildRouteStops(){
   const stops=[];
   const seen=new Set();
 
-  blocks.forEach(block=>{
+  blocks.forEach((block,index)=>{
     const customer=extractCustomer(block);
     const service=extractService(block);
     const times=extractTimes(block);
@@ -387,7 +387,9 @@ function buildRouteStops(){
 
     if(bad) return;
 
-    const key=(customer+"|"+service).toLowerCase();
+    const timeKey = times.length ? times.join("-") : "NO_TIME_" + index;
+    const key = (customer + "|" + service + "|" + timeKey).toLowerCase();
+
     if(seen.has(key)) return;
 
     stops.push({customer,service,times});
