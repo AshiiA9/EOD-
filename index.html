@@ -1,1 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pest Tech End-of-Day Notes</title>
 
+  <!-- Tesseract.js OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <style>
+:root{
+  --blue:#0ea5e9;
+  --pink:#ec4899;
+  --purple:#8b5cf6;
+  --bg:#f4f8fc;
+  --card:#ffffff;
+  --text:#1f2937;
+  --border:#dbe4ee;
+}
+
+*{
+  box-sizing:border-box;
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--text);
+}
+
+.header{
+  background:linear-gradient(135deg,var(--blue),var(--pink));
+  color:white;
+  padding:28px 20px;
+}
+
+.header h1{
+  margin:0;
+  font-size:28px;
+}
+
+.header p{
+  margin-top:8px;
+  opacity:.95;
+}
+
+.container{
+  max-width:1000px;
+  margin:auto;
+  padding:15px;
+}
+
+.tabs{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-bottom:15px;
+}
+
+.tab-btn{
+  border:none;
+  padding:14px;
+  border-radius:14px;
+  font-size:16px;
+  font-weight:700;
+  background:white;
+  color:#444;
+  border:2px solid var(--border);
+  cursor:pointer;
+}
+
+.tab-btn.active{
+  background:linear-gradient(135deg,var(--blue),var(--pink));
+  color:white;
+  border:none;
+}
+
+.tab{
+  display:none;
+}
+
+.tab.active{
+  display:block;
+}
+
+.card{
+  background:var(--card);
+  border-radius:18px;
+  padding:18px;
+  margin-bottom:15px;
+  border:1px solid var(--border);
+  box-shadow:0 3px 10px rgba(0,0,0,.05);
+}
+
+.card h2{
+  margin-top:0;
+}
+
+input[type="file"]{
+  width:100%;
+  padding:14px;
+  border-radius:12px;
+  border:2px dashed var(--border);
+  background:white;
+}
+
+textarea{
+  width:100%;
+  min-height:220px;
+  padding:14px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  resize:vertical;
+  font-size:15px;
+}
+
+.btn{
+  width:100%;
+  border:none;
+  padding:16px;
+  margin-top:10px;
+  border-radius:14px;
+  font-size:17px;
+  font-weight:700;
+  color:white;
+  cursor:pointer;
+  background:linear-gradient(135deg,var(--blue),var(--pink));
+}
+
+.btn:active{
+  transform:scale(.98);
+}
+
+.check-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+}
+
+.check-item{
+  background:#f9fbfd;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px;
+}
+
+.check-item label{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+.status{
+  margin-top:10px;
+  font-weight:600;
+  color:var(--purple);
+}
+
+.preview{
+  background:#f9fbfd;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+  margin-top:10px;
+  max-height:250px;
+  overflow:auto;
+}
+
+@media(max-width:700px){
+
+  .tabs{
+    grid-template-columns:1fr;
+  }
+
+  .check-grid{
+    grid-template-columns:1fr;
+  }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <h1>Pest Tech End-of-Day Notes</h1>
+    <p>Upload GorillaDesk screenshots, extract route info, generate notes, and copy.</p>
+  </div>
+
+  <div class="container">
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('route', this)">End-of-Day</button>
+      <button class="tab-btn" onclick="showTab('office', this)">Office / Concerns</button>
+      <button class="tab-btn" onclick="showTab('supplies', this)">Truck Needs</button>
+    </div>
+
+    <div id="route" class="tab active">
+      <div class="card">
+        <h2>Upload Route Screenshots</h2>
+        <p>Upload up to 1–2 screenshots per customer. OCR will pull customer name, service type, and concerns.</p>
+
+        <input id="imageUpload" type="file" accept="image/*" multiple />
+
+        <button class="btn" onclick="runOCR()">Extract From Screenshots</button>
+        <div id="ocrStatus" class="status"></div>
+      </div>
+
+      <div class="card">
+        <h2>Review / Edit Extracted Text</h2>
+        <textarea id="ocrText" placeholder="OCR text will appear here. You can fix anything before generating notes."></textarea>
+
+        <button class="btn" onclick="generateRouteNote()">Generate End-of-Day Note</button>
+      </div>
+
+      <div class="card">
+        <h2>End-of-Day Note</h2>
+        <textarea id="routeOutput" placeholder="Generated route summary will appear here."></textarea>
+        <button class="btn" onclick="copyText('routeOutput')">Copy End-of-Day Note</button>
+      </div>
+    </div>
+
+    <div id="office" class="tab">
+      <div class="card">
+        <h2>Office / Customer Concerns</h2>
+        <p>This uses the same OCR text from your uploaded screenshots.</p>
+
+        <button class="btn" onclick="generateOfficeNote()">Generate Office Note</button>
+
+        <textarea id="officeOutput" placeholder="Customer concerns, callbacks, and office notes will appear here."></textarea>
+
+        <button class="btn" onclick="copyText('officeOutput')">Copy Office Note</button>
+      </div>
+    </div>
+
+    <div id="supplies" class="tab">
+      <div class="card">
+        <h2>Truck Needs / Supplies Low</h2>
+        <p>Select anything running low, then generate a restock note.</p>
+
+        <div class="check-grid">
+          <div class="check-item"><label><input type="checkbox" value="Alpine WSG"> Alpine WSG</label></div>
+          <div class="check-item"><label><input type="checkbox" value="CrossCheck Plus"> CrossCheck Plus</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Bifen XTS"> Bifen XTS</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Bifen I/T"> Bifen I/T</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Taurus SC"> Taurus SC</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Termidor SC"> Termidor SC</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Termidor HE"> Termidor HE</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Gentrol IGR"> Gentrol IGR</label></div>
+          <div class="check-item"><label><input type="checkbox" value="CrossFire"> CrossFire</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Final Bait Blox"> Final Bait Blox</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Rodent Bait Stations"> Rodent Bait Stations</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Trelona ATBS"> Trelona ATBS</label></div>
+          <div class="check-item"><label><input type="checkbox" value="In2Mix Packets"> In2Mix Packets</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Mouse Sticky Traps"> Mouse Sticky Traps</label></div>
+          <div class="check-item"><label><input type="checkbox" value="T-Rex Snap Traps"> T-Rex Snap Traps</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Tri-Die / Tri-Dust"> Tri-Die / Tri-Dust</label></div>
+          <div class="check-item"><label><input type="checkbox" value="Wasp & Hornet Spray"> Wasp & Hornet Spray</label></div>
+        </div>
+
+        <textarea id="extraSupplies" placeholder="Add anything else here, one item per line."></textarea>
+
+        <button class="btn" onclick="generateSupplyNote()">Generate Truck Needs Note</button>
+
+        <textarea id="supplyOutput" placeholder="Generated supplies note will appear here."></textarea>
+
+        <button class="btn" onclick="copyText('supplyOutput')">Copy Truck Needs Note</button>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+let extractedText = "";
+
+function showTab(tabId, btn){
+  document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(button => button.classList.remove("active"));
+
+  document.getElementById(tabId).classList.add("active");
+  btn.classList.add("active");
+}
+
+async function runOCR(){
+  const files = document.getElementById("imageUpload").files;
+  const status = document.getElementById("ocrStatus");
+  const output = document.getElementById("ocrText");
+
+  if(!files.length){
+    status.textContent = "Please upload at least one screenshot first.";
+    return;
+  }
+
+  extractedText = "";
+  output.value = "";
+  status.textContent = "Starting OCR... this may take a minute on iPhone.";
+
+  for(let i = 0; i < files.length; i++){
+    status.textContent = `Reading screenshot ${i + 1} of ${files.length}...`;
+
+    const result = await Tesseract.recognize(
+      files[i],
+      "eng",
+      {
+        logger: m => {
+          if(m.status === "recognizing text"){
+            status.textContent = `Reading screenshot ${i + 1} of ${files.length}: ${Math.round(m.progress * 100)}%`;
+          }
+        }
+      }
+    );
+
+    extractedText += "\n\n--- SCREENSHOT " + (i + 1) + " ---\n";
+    extractedText += result.data.text;
+  }
+
+  output.value = cleanText(extractedText);
+  status.textContent = "OCR complete. Review/edit the text, then generate notes.";
+}
+
+function cleanText(text){
+  return text
+    .replace(/[|]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/SCREENSHOT/g, "\n\nSCREENSHOT")
+    .trim();
+}
+
+function getOCRText(){
+  return document.getElementById("ocrText").value.trim();
+}
+
+function splitScreenshots(text){
+  return text
+    .split(/--- SCREENSHOT \d+ ---/i)
+    .map(t => t.trim())
+    .filter(Boolean);
+}
+
+function extractCustomer(block){
+  const lines = block.split(/\n| {2,}/).map(l => l.trim()).filter(Boolean);
+
+  const skipWords = [
+    "job details",
+    "notes",
+    "start service",
+    "finish service",
+    "materials",
+    "forms",
+    "payment",
+    "invoice",
+    "estimate",
+    "service instructions",
+    "customer concern",
+    "technician",
+    "ashton",
+    "service type",
+    "appointment"
+  ];
+
+  for(const line of lines){
+    const lower = line.toLowerCase();
+
+    if(skipWords.some(w => lower.includes(w))) continue;
+    if(/\d{1,2}:\d{2}/.test(line)) continue;
+    if(line.length < 3 || line.length > 55) continue;
+
+    if(/[A-Za-z]/.test(line)){
+      return line.replace(/[:]/g, "").trim();
+    }
+  }
+
+  return "Unknown Customer";
+}
+
+function extractServiceType(block){
+  const knownServices = [
+    "General Pest",
+    "Roach Treatment",
+    "Rodent",
+    "Rodent Service",
+    "Mosquito",
+    "Mosquito Service",
+    "Termite",
+    "Termite Service",
+    "Bed Bug",
+    "Bed Bug Service",
+    "Inspection",
+    "Callback",
+    "Follow Up",
+    "Follow-Up",
+    "Exterior Service",
+    "Interior Service",
+    "Initial Service"
+  ];
+
+  const lower = block.toLowerCase();
+
+  for(const service of knownServices){
+    if(lower.includes(service.toLowerCase())){
+      return service;
+    }
+  }
+
+  const serviceMatch = block.match(/Service Type[:\s]+([A-Za-z ]{3,40})/i);
+  if(serviceMatch){
+    return serviceMatch[1].trim();
+  }
+
+  return "Service";
+}
+
+function generateRouteNote(){
+  const text = getOCRText();
+
+  if(!text){
+    alert("Run OCR or paste text into the review box first.");
+    return;
+  }
+
+  const blocks = splitScreenshots(text);
+  const appointments = [];
+  const seen = new Set();
+
+  blocks.forEach(block => {
+    const customer = extractCustomer(block);
+    const service = extractServiceType(block);
+
+    const key = customer.toLowerCase() + "|" + service.toLowerCase();
+
+    if(customer !== "Unknown Customer" && !seen.has(key)){
+      appointments.push({ customer, service });
+      seen.add(key);
+    }
+  });
+
+  if(!appointments.length){
+    document.getElementById("routeOutput").value =
+      "End-of-day route summary:\n\nNo appointments were clearly detected. Please review the OCR text and try again.";
+    return;
+  }
+
+  let note = "End-of-day route summary:\n\n";
+
+  appointments.forEach(item => {
+    note += `Completed ${item.service} for ${item.customer}.\n`;
+  });
+
+  note += `\nTotal completed stops: ${appointments.length}.`;
+
+  document.getElementById("routeOutput").value = note;
+}
+
+function extractConcernsFromBlock(block){
+  const lines = block.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const concerns = [];
+
+  for(let i = 0; i < lines.length; i++){
+    const line = lines[i];
+    const lower = line.toLowerCase();
+
+    if(
+      lower.includes("customer concern") ||
+      lower.includes("customer concerns") ||
+      lower.includes("-customer concern") ||
+      lower.includes("callback") ||
+      lower.includes("issue found") ||
+      lower.includes("office") ||
+      lower.includes("no answer") ||
+      lower.includes("needs follow") ||
+      lower.includes("follow up") ||
+      lower.includes("follow-up") ||
+      lower.includes("problem area") ||
+      lower.includes("customer requested") ||
+      lower.includes("access issue")
+    ){
+      let combined = line;
+
+      if(lines[i + 1]) combined += " " + lines[i + 1];
+      if(lines[i + 2] && lines[i + 2].length < 120) combined += " " + lines[i + 2];
+
+      concerns.push(
+        combined
+          .replace(/[-•]/g, "")
+          .replace(/customer concern[s]?:?/i, "")
+          .trim()
+      );
+    }
+  }
+
+  return concerns.filter(c => c.length > 4);
+}
+
+function generateOfficeNote(){
+  const text = getOCRText();
+
+  if(!text){
+    alert("Run OCR or paste text into the review box on the End-of-Day tab first.");
+    return;
+  }
+
+  const blocks = splitScreenshots(text);
+  let note = "Customer Concerns / Office Follow-Up Items:\n\n";
+  let found = false;
+
+  blocks.forEach(block => {
+    const customer = extractCustomer(block);
+    const concerns = extractConcernsFromBlock(block);
+
+    if(concerns.length){
+      found = true;
+      note += `${customer}:\n`;
+
+      concerns.forEach(c => {
+        note += `• ${c}\n`;
+      });
+
+      note += "\n";
+    }
+  });
+
+  if(!found){
+    note += "No customer concerns, callbacks, or office follow-up items were clearly detected from the screenshots.";
+  }
+
+  document.getElementById("officeOutput").value = note.trim();
+}
+
+function generateSupplyNote(){
+  const checked = Array.from(document.querySelectorAll('#supplies input[type="checkbox"]:checked'))
+    .map(cb => cb.value);
+
+  const extra = document.getElementById("extraSupplies").value
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  const items = [...checked, ...extra];
+
+  if(!items.length){
+    document.getElementById("supplyOutput").value =
+      "Truck Needs / Supplies Low:\n\nNo supplies selected.";
+    return;
+  }
+
+  let note = "Truck Needs / Supplies Low:\n\n";
+
+  items.forEach(item => {
+    note += `• ${item}\n`;
+  });
+
+  note += "\nPlease restock when available.";
+
+  document.getElementById("supplyOutput").value = note;
+}
+
+function copyText(id){
+  const textBox = document.getElementById(id);
+  const text = textBox.value;
+
+  if(!text.trim()){
+    alert("Nothing to copy yet.");
+    return;
+  }
+
+  navigator.clipboard.writeText(text)
+    .then(() => alert("Copied."))
+    .catch(() => {
+      textBox.select();
+      document.execCommand("copy");
+      alert("Copied.");
+    });
+}
+</script>
+
+</body>
+</html>
+}
+    
