@@ -1,4 +1,4 @@
-   <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -97,6 +97,10 @@ textarea{
   padding:10px;
   background:#f9fbfd;
 }
+.small{
+  font-size:14px;
+  opacity:.8;
+}
 @media(max-width:700px){
   .tabs,.check-grid{grid-template-columns:1fr}
 }
@@ -107,7 +111,7 @@ textarea{
 
 <div class="header">
   <h1>Pest Tech End-of-Day Notes</h1>
-  <p>Upload GorillaDesk screenshots → OCR → generate route, office, and truck needs notes.</p>
+  <p>Upload GorillaDesk screenshots → OCR → generate route, office, and truck notes.</p>
 </div>
 
 <div class="container">
@@ -120,16 +124,16 @@ textarea{
 
 <div id="route" class="tab active">
   <div class="card">
-    <h2>Upload Screenshots</h2>
-    <p>Upload in this order per customer: <b>Job Details first</b>, then <b>Notes screenshot second</b>.</p>
-    <input id="imageUpload" type="file" accept="image/*" multiple>
-    <button class="btn" onclick="runOCR()">Extract From Screenshots</button>
-    <div id="ocrStatus" class="status"></div>
+    <h2>End-of-Day Route Screenshots</h2>
+    <p>Upload Job Details screenshots only. This section pulls only customer name and service type.</p>
+    <input id="routeUpload" type="file" accept="image/*" multiple>
+    <button class="btn" onclick="runRouteOCR()">Extract Route Stops</button>
+    <div id="routeStatus" class="status"></div>
   </div>
 
   <div class="card">
-    <h2>Review / Edit Extracted Text</h2>
-    <textarea id="ocrText"></textarea>
+    <h2>Review Route OCR Text</h2>
+    <textarea id="routeOCRText"></textarea>
     <button class="btn" onclick="generateRouteNote()">Generate End-of-Day Note</button>
   </div>
 
@@ -142,8 +146,21 @@ textarea{
 
 <div id="office" class="tab">
   <div class="card">
-    <h2>Office / Customer Concerns</h2>
+    <h2>Customer Concerns / Notes Screenshots</h2>
+    <p>Upload the Notes screenshots here. The app will use the top check-in/check-out times to match the notes to the customer from the route screenshots.</p>
+    <input id="concernUpload" type="file" accept="image/*" multiple>
+    <button class="btn" onclick="runConcernOCR()">Extract Customer Concerns</button>
+    <div id="concernStatus" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Review Concern OCR Text</h2>
+    <textarea id="concernOCRText"></textarea>
     <button class="btn" onclick="generateOfficeNote()">Generate Office Note</button>
+  </div>
+
+  <div class="card">
+    <h2>Office Note</h2>
     <textarea id="officeOutput"></textarea>
     <button class="btn" onclick="copyText('officeOutput')">Copy Office Note</button>
   </div>
@@ -183,6 +200,32 @@ textarea{
 </div>
 
 <script>
+let routeStops = [];
+
+const services=[
+  "Quarterly Gen Pest Service Subscription Customer",
+  "Call Back Service",
+  "Roach Treatment",
+  "Yard Treatment",
+  "General Pest",
+  "Mosquito Service",
+  "Mosquito",
+  "Rodent Service",
+  "Rodent",
+  "Quarterly Service",
+  "Monthly Service",
+  "Bi-Monthly Service",
+  "Initial Booking",
+  "Initial Service",
+  "Subscription Payment",
+  "Termite Service",
+  "Termite",
+  "Bed Bug Service",
+  "Bed Bug",
+  "Inspection",
+  "Callback"
+];
+
 function showTab(id,btn){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
@@ -190,18 +233,16 @@ function showTab(id,btn){
   btn.classList.add("active");
 }
 
-async function runOCR(){
-  const files=document.getElementById("imageUpload").files;
-  const status=document.getElementById("ocrStatus");
-  const box=document.getElementById("ocrText");
+async function ocrFiles(inputId,statusId,prefix){
+  const files=document.getElementById(inputId).files;
+  const status=document.getElementById(statusId);
 
   if(!files.length){
     status.textContent="Upload screenshots first.";
-    return;
+    return "";
   }
 
   let allText="";
-  box.value="";
   status.textContent="Starting OCR...";
 
   for(let i=0;i<files.length;i++){
@@ -215,12 +256,22 @@ async function runOCR(){
       }
     });
 
-    allText+=`\n\n###SCREENSHOT_${i+1}###\n`;
+    allText+=`\n\n###${prefix}_${i+1}###\n`;
     allText+=result.data.text;
   }
 
-  box.value=cleanOCR(allText);
-  status.textContent="OCR complete. Review text, then generate notes.";
+  status.textContent="OCR complete. Review text, then generate note.";
+  return cleanOCR(allText);
+}
+
+async function runRouteOCR(){
+  const text=await ocrFiles("routeUpload","routeStatus","ROUTE");
+  document.getElementById("routeOCRText").value=text;
+}
+
+async function runConcernOCR(){
+  const text=await ocrFiles("concernUpload","concernStatus","CONCERN");
+  document.getElementById("concernOCRText").value=text;
 }
 
 function cleanOCR(text){
@@ -231,9 +282,10 @@ function cleanOCR(text){
     .trim();
 }
 
-function getBlocks(){
-  const text=document.getElementById("ocrText").value;
-  return text.split(/###SCREENSHOT_\d+###/).map(x=>x.trim()).filter(Boolean);
+function blocksFrom(text,prefix){
+  return text.split(new RegExp("###"+prefix+"_\\d+###","i"))
+    .map(x=>x.trim())
+    .filter(Boolean);
 }
 
 function cleanLine(line){
@@ -257,41 +309,20 @@ function isJunk(line){
     l.includes("show change logs") ||
     l.includes("attach a photo") ||
     l.includes("top note") ||
+    l.includes("todo list") ||
+    l.includes("notes") ||
     l.includes("this note will appear") ||
     l.includes("mobile") ||
     l.includes("@") ||
     /\d{3}[-.\s]\d{3}[-.\s]\d{4}/.test(line) ||
-    /\d{1,2}:\d{2}\s?(am|pm)/i.test(line) ||
-    /\btn\b/i.test(line) ||
-    /\d{5}/.test(line) ||
     /^\d/.test(line)
   );
 }
 
-const services=[
-  "General Pest",
-  "Roach Treatment",
-  "Call Back Service",
-  "Callback",
-  "Mosquito",
-  "Mosquito Service",
-  "Rodent",
-  "Rodent Service",
-  "Quarterly Service",
-  "Monthly Service",
-  "Bi-Monthly Service",
-  "Initial Booking",
-  "Initial Service",
-  "Inspection",
-  "Bed Bug",
-  "Bed Bug Service",
-  "Termite",
-  "Termite Service",
-  "Exterior Service",
-  "Interior Service",
-  "Quarterly Gen Pest Service Subscription Customer",
-  "Subscription Payment"
-];
+function extractTimes(block){
+  const matches = block.match(/\d{1,2}:\d{2}\s?(?:AM|PM)/gi) || [];
+  return matches.slice(0,2).map(t=>t.toUpperCase().replace(/\s+/g," "));
+}
 
 function extractService(block){
   const lower=block.toLowerCase();
@@ -308,57 +339,63 @@ function extractService(block){
     }
   }
 
-  return "Service";
+  return "";
 }
 
 function extractCustomer(block){
   const lines=block.split("\n").map(cleanLine).filter(Boolean);
 
-  let afterJob=false;
-
-  for(const line of lines){
-    const l=line.toLowerCase();
+  for(let i=0;i<lines.length;i++){
+    const l=lines[i].toLowerCase();
 
     if(l.includes("job details")){
-      afterJob=true;
-      continue;
+      for(let j=i+1;j<lines.length;j++){
+        const possible=lines[j];
+        const p=possible.toLowerCase();
+
+        if(isJunk(possible)) continue;
+        if(services.some(s=>p.includes(s.toLowerCase()))) continue;
+        if(possible.length<3 || possible.length>60) continue;
+
+        return possible;
+      }
     }
-
-    if(!afterJob) continue;
-    if(isJunk(line)) continue;
-    if(services.some(s=>l.includes(s.toLowerCase()))) continue;
-    if(line.length<3 || line.length>60) continue;
-
-    return line;
   }
 
-  for(const line of lines){
-    const l=line.toLowerCase();
-    if(isJunk(line)) continue;
-    if(services.some(s=>l.includes(s.toLowerCase()))) continue;
-    if(line.length>=3 && line.length<=60) return line;
-  }
-
-  return "Unknown Customer";
+  return "";
 }
 
-function pairStops(){
-  const blocks=getBlocks();
+function buildRouteStops(){
+  const text=document.getElementById("routeOCRText").value;
+  const blocks=blocksFrom(text,"ROUTE");
   const stops=[];
+  const seen=new Set();
 
-  for(let i=0;i<blocks.length;i+=2){
-    const job=blocks[i] || "";
-    const notes=blocks[i+1] || "";
+  blocks.forEach(block=>{
+    const customer=extractCustomer(block);
+    const service=extractService(block);
+    const times=extractTimes(block);
 
-    stops.push({
-      customer: extractCustomer(job),
-      service: extractService(job),
-      jobText: job,
-      notesText: notes
-    });
-  }
+    if(!customer || !service) return;
 
-  return stops.filter(s=>s.customer && s.customer!=="Unknown Customer");
+    const bad =
+      customer.toLowerCase().includes("todo") ||
+      customer.toLowerCase().includes("notes") ||
+      customer.toLowerCase().includes("screenshot") ||
+      service.toLowerCase().includes("todo") ||
+      service.toLowerCase().includes("notes");
+
+    if(bad) return;
+
+    const key=(customer+"|"+service).toLowerCase();
+    if(seen.has(key)) return;
+
+    stops.push({customer,service,times});
+    seen.add(key);
+  });
+
+  routeStops=stops;
+  return stops;
 }
 
 function formatList(items){
@@ -368,29 +405,34 @@ function formatList(items){
 }
 
 function generateRouteNote(){
-  const stops=pairStops();
+  const stops=buildRouteStops();
 
   if(!stops.length){
-    document.getElementById("routeOutput").value="No customer/service pairs were clearly detected. Review the OCR text and try again.";
+    document.getElementById("routeOutput").value="No clean customer/service pairs were detected. Review the OCR text and try again.";
     return;
   }
 
-  const seen=new Set();
-  const items=[];
-
-  stops.forEach(s=>{
-    const key=(s.customer+"|"+s.service).toLowerCase();
-    if(!seen.has(key)){
-      items.push(`${s.customer} – ${s.service}`);
-      seen.add(key);
-    }
-  });
-
+  const items=stops.map(s=>`${s.customer} – ${s.service}`);
   document.getElementById("routeOutput").value=formatList(items);
 }
 
-function extractConcerns(notesText){
-  const lines=notesText.split("\n").map(cleanLine).filter(Boolean);
+function matchCustomerByTimes(times){
+  if(!routeStops.length) buildRouteStops();
+
+  if(times.length){
+    for(const stop of routeStops){
+      if(stop.times && stop.times.length){
+        const same = times.some(t=>stop.times.includes(t));
+        if(same) return stop.customer;
+      }
+    }
+  }
+
+  return "Unknown Customer";
+}
+
+function extractConcernsFromBlock(block){
+  const lines=block.split("\n").map(cleanLine).filter(Boolean);
   const concerns=[];
   let capture=false;
 
@@ -399,46 +441,47 @@ function extractConcerns(notesText){
 
     if(l.includes("customer concern")){
       capture=true;
-      const cleaned=line.replace(/customer concern[s]?:?/i,"").replace(/^[-•]/,"").trim();
-      if(cleaned) concerns.push(cleaned);
+      const cleaned=line
+        .replace(/customer concern[s]?:?/i,"")
+        .replace(/^[-•]/,"")
+        .trim();
+      if(cleaned && !isJunk(cleaned)) concerns.push(cleaned);
       continue;
     }
 
     if(capture){
-      if(
+      const stopWords =
         l.includes("ashton arellano") ||
         l.includes("anthony") ||
-        l.includes("notes") ||
         l.includes("service type") ||
         l.includes("materials applied") ||
         l.includes("service completed") ||
         l.includes("top note") ||
-        l.includes("this note will appear")
-      ){
-        continue;
-      }
+        l.includes("todo list") ||
+        l.includes("this note will appear");
 
-      if(l.includes("customer concern")) continue;
+      if(stopWords) continue;
 
-      if(line.length>3 && line.length<160 && !isJunk(line)){
+      if(line.length>3 && line.length<170 && !isJunk(line)){
         concerns.push(line.replace(/^[-•]/,"").trim());
       }
     }
 
-    if(
+    const important =
       l.includes("no answer") ||
-      l.includes("callback") ||
       l.includes("call back") ||
+      l.includes("callback") ||
       l.includes("problem area") ||
       l.includes("bring ladder") ||
       l.includes("customer requested") ||
       l.includes("access") ||
       l.includes("complaining") ||
-      l.includes("not available")
-    ){
-      if(line.length>3 && line.length<160){
-        concerns.push(line.replace(/^[-•]/,"").trim());
-      }
+      l.includes("not available") ||
+      l.includes("mouse activity") ||
+      l.includes("roaches");
+
+    if(important && line.length>3 && line.length<170 && !isJunk(line)){
+      concerns.push(line.replace(/^[-•]/,"").trim());
     }
   }
 
@@ -446,16 +489,25 @@ function extractConcerns(notesText){
 }
 
 function generateOfficeNote(){
-  const stops=pairStops();
+  const text=document.getElementById("concernOCRText").value;
+  const blocks=blocksFrom(text,"CONCERN");
+
+  if(!blocks.length){
+    document.getElementById("officeOutput").value="Upload concern/notes screenshots first.";
+    return;
+  }
+
   let note="Customer Concerns / Office Follow-Up Items:\n\n";
   let found=false;
 
-  stops.forEach(s=>{
-    const concerns=extractConcerns(s.notesText + "\n" + s.jobText);
+  blocks.forEach(block=>{
+    const times=extractTimes(block);
+    const customer=matchCustomerByTimes(times);
+    const concerns=extractConcernsFromBlock(block);
 
     if(concerns.length){
       found=true;
-      note+=`${s.customer}:\n`;
+      note+=`${customer}:\n`;
       concerns.forEach(c=>note+=`• ${c}\n`);
       note+="\n";
     }
