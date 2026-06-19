@@ -97,6 +97,26 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <textarea id="officeOutput"></textarea>
 <button class="btn" onclick="copyText('officeOutput')">Copy Office Note</button>
 </div>
+
+<div class="card">
+<h2>Office Notes From Service Notes</h2>
+<p>Upload Job Details screenshot first, then Service Notes screenshot for that same customer. This pulls after “applicable” and stops before “Property Estimation.”</p>
+<input id="serviceNoteUpload" type="file" accept="image/*" multiple>
+<button class="btn" onclick="runServiceNoteOCR()">Extract Office Notes</button>
+<div id="serviceNoteStatus" class="status"></div>
+</div>
+
+<div class="card">
+<h2>Review Service Note OCR Text</h2>
+<textarea id="serviceNoteOCRText"></textarea>
+<button class="btn" onclick="generateServiceOfficeNotes()">Generate Service Office Notes</button>
+</div>
+
+<div class="card">
+<h2>Service Office Notes</h2>
+<textarea id="serviceOfficeOutput"></textarea>
+<button class="btn" onclick="copyText('serviceOfficeOutput')">Copy Service Office Notes</button>
+</div>
 </div><div id="supplies" class="tab">
 <div class="card">
 <h2>Truck Needs / Supplies Low</h2>
@@ -132,6 +152,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 
 <script>
 let routeStops=[];
+let serviceOfficeData=[];
 
 const services=[
 "Quarterly Gen Pest Service Subscription Customer","Call Back Service","Roach Treatment","Yard Treatment",
@@ -173,6 +194,11 @@ generateRouteNote();
 async function runConcernOCR(){
 document.getElementById("concernOCRText").value=await ocrFiles("concernUpload","concernStatus","CONCERN");
 generateOfficeNote();
+}
+
+async function runServiceNoteOCR(){
+document.getElementById("serviceNoteOCRText").value=await ocrFiles("serviceNoteUpload","serviceNoteStatus","SERVICENOTE");
+generateServiceOfficeNotes();
 }
 
 function cleanOCR(text){
@@ -226,7 +252,6 @@ return [...new Set(matches.map(t=>t.toUpperCase().replace(/\s+/g," ")))];
 
 function extractCustomer(block){
 const lines=block.split("\n").map(cleanLine).filter(Boolean);
-
 let phoneIndex=-1;
 let emailIndex=-1;
 
@@ -255,16 +280,14 @@ return cleanCustomerName(customer);
 }
 
 return "";
-}function extractService(block){
-const lines=block.split("\n").map(cleanLine).filter(Boolean);
+}
 
+function extractService(block){
+const lines=block.split("\n").map(cleanLine).filter(Boolean);
 let emailIndex=-1;
 
 for(let i=0;i<lines.length;i++){
-if(isEmailLine(lines[i])){
-emailIndex=i;
-break;
-}
+if(isEmailLine(lines[i])){emailIndex=i;break;}
 }
 
 if(emailIndex>=0){
@@ -297,9 +320,7 @@ const lower=block.toLowerCase();
 for(const s of services){if(lower.includes(s.toLowerCase())) return s;}
 
 return "";
-}
-
-function buildRouteStops(){
+}function buildRouteStops(){
 const text=document.getElementById("routeOCRText").value;
 const blocks=blocksFrom(text,"ROUTE");
 const stops=[];
@@ -374,16 +395,11 @@ return block.toLowerCase().includes("job details") && extractCustomer(block);
 }
 
 function cleanConcernLine(line){
-return line
-.replace(/^[-•*·«»\s]+/,"")
-.replace(/[«»]/g,"")
-.replace(/\s+/g," ")
-.trim();
+return line.replace(/^[-•*·«»\s]+/,"").replace(/[«»]/g,"").replace(/\s+/g," ").trim();
 }
 
 function isConcernStopLine(line){
 const l=line.toLowerCase();
-
 return (
 l.includes("property estimation") ||
 l.includes("hy edit") ||
@@ -419,15 +435,11 @@ let lower=line.toLowerCase();
 
 if(!capture && lower.includes("customer concern")){
 capture=true;
-
-line=line
-.replace(/[-•*·\s]*customer concern[s]?:?/i,"")
-.trim();
+line=line.replace(/[-•*·\s]*customer concern[s]?:?/i,"").trim();
 
 if(line && !isJunk(line) && !isConcernStopLine(line)){
 concerns.push(cleanConcernLine(line));
 }
-
 continue;
 }
 
@@ -441,6 +453,39 @@ concerns.push(cleanConcernLine(line));
 }
 
 return [...new Set(concerns)].filter(Boolean);
+}
+
+function extractServiceOfficeNotes(block){
+const lines=block.split("\n").map(cleanLine).filter(Boolean);
+const notes=[];
+let capture=false;
+
+for(const raw of lines){
+let line=raw.trim();
+let lower=line.toLowerCase();
+
+if(lower.includes("property estimation")) break;
+
+if(!capture && lower.includes("applicable")){
+capture=true;
+line=line.replace(/.*applicable[:\s-]*/i,"").trim();
+
+if(line && !isConcernStopLine(line) && !isJunk(line)){
+notes.push(cleanConcernLine(line));
+}
+continue;
+}
+
+if(capture){
+if(isConcernStopLine(line)) break;
+
+if(line.length>1 && line.length<200 && !isJunk(line)){
+notes.push(cleanConcernLine(line));
+}
+}
+}
+
+return [...new Set(notes)].filter(Boolean);
 }
 
 function generateOfficeNote(){
@@ -493,6 +538,49 @@ concernOnly+="No customer concerns were clearly detected under Customer Concern.
 
 document.getElementById("officeOutput").value=note.trim();
 document.getElementById("customerConcernOutput").value=concernOnly.trim();
+}
+
+function generateServiceOfficeNotes(){
+const text=document.getElementById("serviceNoteOCRText").value;
+const blocks=blocksFrom(text,"SERVICENOTE");
+
+if(!blocks.length){
+document.getElementById("serviceOfficeOutput").value="Upload service note screenshots first.";
+return;
+}
+
+let output="";
+let found=false;
+
+for(let i=0;i<blocks.length;i++){
+let customer="";
+let noteBlock=blocks[i];
+
+if(looksLikeJobDetails(blocks[i])){
+customer=extractCustomer(blocks[i]);
+if(blocks[i+1]){
+noteBlock=blocks[i+1];
+i++;
+}
+}else{
+customer=matchCustomerByTimes(extractTimes(blocks[i]));
+}
+
+const notes=extractServiceOfficeNotes(noteBlock);
+
+if(notes.length){
+found=true;
+output+=`${customer || "Unknown Customer"}\n`;
+notes.forEach(n=>output+=`• ${n}\n`);
+output+="\n";
+}
+}
+
+if(!found){
+output="No service office notes were clearly detected after applicable and before Property Estimation.";
+}
+
+document.getElementById("serviceOfficeOutput").value=output.trim();
 }
 
 function generateSupplyNote(){
