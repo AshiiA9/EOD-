@@ -137,7 +137,7 @@ const services=[
 "Quarterly Gen Pest Service Subscription Customer","Call Back Service","Roach Treatment","Yard Treatment",
 "General Pest","Mosquito Service","Mosquito","Rodent Service","Rodent","Quarterly Service","Monthly Service",
 "Bi-Monthly Service","Initial Booking","Initial Service","Subscription Payment","Termite Service","Termite",
-"Bed Bug Service","Bed Bug","Inspection","Callback"
+"Bed Bug Service","Bed Bug","Inspection","Callback","Ants"
 ];
 
 function showTab(id,btn){
@@ -199,6 +199,15 @@ function isTimeLine(line){
 return /\d{1,2}:\d{2}\s?(AM|PM)/i.test(line);
 }
 
+function cleanCustomerName(name){
+name=String(name||"").trim();
+name=name.replace(/^\([^)]{1,6}\)\s*/,"");
+name=name.replace(/^(oO|OO|0O|vr|v r|vv|nr|or)\s+/i,"");
+name=name.replace(/^[^A-Za-z]+/,"");
+name=name.replace(/\s+/g," ");
+return name.trim();
+}
+
 function isJunk(line){
 const l=line.toLowerCase();
 return !line ||
@@ -215,72 +224,7 @@ const matches=block.match(/\d{1,2}:\d{2}\s?(?:AM|PM)/gi)||[];
 return [...new Set(matches.map(t=>t.toUpperCase().replace(/\s+/g," ")))];
 }
 
-function cleanCustomerName(name){
-
-name=name.trim();
-
-name=name.replace(/^\([^)]*\)\s*/,'');
-name=name.replace(/^[a-z]{1,3}\s+/i,'');
-name=name.replace(/^[^A-Za-z]+/,'');
-
-return name.trim();
-
-}
-
 function extractCustomer(block){
-
-const lines=block.split("\n").map(cleanLine).filter(Boolean);
-
-let phoneIndex=-1;
-let emailIndex=-1;
-
-for(let i=0;i<lines.length;i++){
-
-if(isPhoneLine(lines[i])){
-phoneIndex=i;
-break;
-}
-
-if(isEmailLine(lines[i])){
-emailIndex=i;
-break;
-}
-
-}
-
-let targetIndex=
-phoneIndex>0
-? phoneIndex-1
-: emailIndex>0
-? emailIndex-1
-: -1;
-
-if(targetIndex>=0){
-
-let customer=lines[targetIndex];
-
-for(let i=targetIndex;i>=0;i--){
-
-const possible=lines[i];
-const p=possible.toLowerCase();
-
-if(isJunk(possible)) continue;
-if(services.some(s=>p.includes(s.toLowerCase()))) continue;
-if(isTimeLine(possible)) continue;
-if(possible.length<3 || possible.length>70) continue;
-
-customer=possible;
-break;
-
-}
-
-return cleanCustomerName(customer);
-
-}
-
-return "";
-
-}
 const lines=block.split("\n").map(cleanLine).filter(Boolean);
 
 let phoneIndex=-1;
@@ -307,7 +251,7 @@ customer=possible;
 break;
 }
 
-return customer;
+return cleanCustomerName(customer);
 }
 
 return "";
@@ -362,9 +306,7 @@ const stops=[];
 const seen=new Set();
 
 blocks.forEach((block,index)=>{
-const customer=cleanCustomerName(
-extractCustomer(block)
-);
+const customer=extractCustomer(block);
 const service=extractService(block);
 const times=extractTimes(block);
 
@@ -520,9 +462,7 @@ let customer="";
 let noteBlock=blocks[i];
 
 if(looksLikeJobDetails(blocks[i])){
-customer=cleanCustomerName(
-extractCustomer(blocks[i])
-);
+customer=extractCustomer(blocks[i]);
 if(blocks[i+1]){
 noteBlock=blocks[i+1];
 i++;
