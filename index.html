@@ -33,7 +33,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <body>
 <div class="header">
 <h1>Pest Tech End-of-Day Notes</h1>
-<p>Upload GorillaDesk screenshots → OCR → generate route, office, and truck notes.</p>
+<p>Upload GorillaDesk screenshots → crop-zone OCR → generate route, concern, and truck notes.</p>
 </div>
 
 <div class="container">
@@ -47,7 +47,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <div id="route" class="tab active">
 <div class="card">
 <h2>End-of-Day Route Screenshots</h2>
-<p>Upload Job Details screenshots only. The app will pull customer name and service type from the saved black-box areas.</p>
+<p>Upload Job Details screenshots only. The app now reads only the saved black-box areas for customer name and service type.</p>
 <input id="routeUpload" type="file" accept="image/*" multiple>
 <button class="btn" onclick="runRouteOCR()">Extract Route Stops</button>
 <div id="routeStatus" class="status"></div>
@@ -61,7 +61,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 
 <div class="card">
 <h2>Service List</h2>
-<p class="small-note">Separate list of customer names and service types only.</p>
+<p class="small-note">Customer name and service type only.</p>
 <textarea id="serviceListOutput"></textarea>
 <button class="btn" onclick="copyText('serviceListOutput')">Copy Service List</button>
 </div>
@@ -76,7 +76,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <div id="office" class="tab">
 <div class="card">
 <h2>Customer Concerns / Notes Screenshots</h2>
-<p>Upload Job Details screenshot first, then Notes screenshot for that same customer. Repeat for each customer.</p>
+<p>Upload Job Details screenshot first, then Notes screenshot for the same customer. Repeat for each customer.</p>
 <input id="concernUpload" type="file" accept="image/*" multiple>
 <button class="btn" onclick="runConcernOCR()">Extract Customer Concerns</button>
 <div id="concernStatus" class="status"></div>
@@ -90,7 +90,6 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 
 <div class="card">
 <h2>Customer Concerns</h2>
-<p class="small-note">Pulls only the text inside the Customer Concern area and stops before Property Estimation.</p>
 <textarea id="customerConcernOutput"></textarea>
 <button class="btn" onclick="copyText('customerConcernOutput')">Copy Customer Concerns</button>
 </div>
@@ -101,32 +100,56 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <button class="btn" onclick="copyText('officeOutput')">Copy Office Note</button>
 </div>
 </div>
+<div id="supplies" class="tab">
+<div class="card">
+<h2>Truck Needs / Supplies Low</h2>
+
+<div class="check-grid">
+<div class="check-item"><label><input type="checkbox" value="Alpine WSG"> Alpine WSG</label></div>
+<div class="check-item"><label><input type="checkbox" value="CrossCheck Plus"> CrossCheck Plus</label></div>
+<div class="check-item"><label><input type="checkbox" value="Bifen XTS"> Bifen XTS</label></div>
+<div class="check-item"><label><input type="checkbox" value="Bifen I/T"> Bifen I/T</label></div>
+<div class="check-item"><label><input type="checkbox" value="Taurus SC"> Taurus SC</label></div>
+<div class="check-item"><label><input type="checkbox" value="Termidor SC"> Termidor SC</label></div>
+<div class="check-item"><label><input type="checkbox" value="Termidor HE"> Termidor HE</label></div>
+<div class="check-item"><label><input type="checkbox" value="Gentrol IGR"> Gentrol IGR</label></div>
+<div class="check-item"><label><input type="checkbox" value="CrossFire"> CrossFire</label></div>
+<div class="check-item"><label><input type="checkbox" value="Final Bait Blox"> Final Bait Blox</label></div>
+<div class="check-item"><label><input type="checkbox" value="Rodent Bait Stations"> Rodent Bait Stations</label></div>
+<div class="check-item"><label><input type="checkbox" value="Trelona ATBS"> Trelona ATBS</label></div>
+<div class="check-item"><label><input type="checkbox" value="In2Mix Packets"> In2Mix Packets</label></div>
+<div class="check-item"><label><input type="checkbox" value="Mouse Sticky Traps"> Mouse Sticky Traps</label></div>
+<div class="check-item"><label><input type="checkbox" value="T-Rex Snap Traps"> T-Rex Snap Traps</label></div>
+<div class="check-item"><label><input type="checkbox" value="Tri-Die / Tri-Dust"> Tri-Die / Tri-Dust</label></div>
+<div class="check-item"><label><input type="checkbox" value="Wasp & Hornet Spray"> Wasp & Hornet Spray</label></div>
+</div>
+
+<textarea id="extraSupplies" placeholder="Add anything else here, one item per line."></textarea>
+<button class="btn" onclick="generateSupplyNote()">Generate Truck Needs Note</button>
+<textarea id="supplyOutput"></textarea>
+<button class="btn" onclick="copyText('supplyOutput')">Copy Truck Needs Note</button>
+</div>
+</div>
+
+</div>
+
+<script>
 let routeStops=[];
 let serviceListData=[];
+let concernData=[];
 
 const services=[
-"Quarterly Gen Pest Service Subscription Customer",
-"Call Back Service",
-"Roach Treatment",
-"Yard Treatment",
-"General Pest",
-"Mosquito Service",
-"Mosquito",
-"Rodent Service",
-"Rodent",
-"Quarterly Service",
-"Monthly Service",
-"Bi-Monthly Service",
-"Initial Booking",
-"Initial Service",
-"Subscription Payment",
-"Termite Service",
-"Termite",
-"Bed Bug Service",
-"Bed Bug",
-"Inspection",
-"Callback"
+"Quarterly Gen Pest Service Subscription Customer","Call Back Service","Roach Treatment","Yard Treatment",
+"General Pest","Mosquito Service","Mosquito","Rodent Service","Rodent","Quarterly Service","Monthly Service",
+"Bi-Monthly Service","Initial Booking","Initial Service","Subscription Payment","Termite Service","Termite",
+"Bed Bug Service","Bed Bug","Inspection","Callback"
 ];
+
+const CROP_ZONES={
+jobName:{x:.04,y:.165,w:.72,h:.055},
+jobService:{x:.04,y:.275,w:.72,h:.055},
+notesConcern:{x:.03,y:.185,w:.94,h:.33}
+};
 
 function showTab(id,btn){
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -135,569 +158,264 @@ document.getElementById(id).classList.add("active");
 btn.classList.add("active");
 }
 
-async function ocrFiles(inputId,statusId,prefix){
-const files=document.getElementById(inputId).files;
-const status=document.getElementById(statusId);
-
-if(!files.length){
-status.textContent="Upload screenshots first.";
-return "";
-}
-
-let allText="";
-
-status.textContent="Starting OCR...";
-
-for(let i=0;i<files.length;i++){
-
-status.textContent=`Reading screenshot ${i+1} of ${files.length}...`;
-
-const result=await Tesseract.recognize(
-files[i],
-"eng",
-{
-logger:m=>{
-if(m.status==="recognizing text"){
-status.textContent=
-`Reading screenshot ${i+1} of ${files.length}: ${Math.round(m.progress*100)}%`;
-}
-}
-}
-);
-
-allText+=`\n\n###${prefix}_${i+1}###\n`;
-allText+=result.data.text;
-}
-
-status.textContent="OCR complete. Review text, then generate note.";
-
-return cleanOCR(allText);
-}
-
-async function runRouteOCR(){
-document.getElementById("routeOCRText").value=
-await ocrFiles(
-"routeUpload",
-"routeStatus",
-"ROUTE"
-);
-}
-
-async function runConcernOCR(){
-document.getElementById("concernOCRText").value=
-await ocrFiles(
-"concernUpload",
-"concernStatus",
-"CONCERN"
-);
-}
-
 function cleanOCR(text){
-return text
-.replace(/[|]/g," ")
-.replace(/\r/g,"\n")
-.replace(/\n{3,}/g,"\n\n")
-.trim();
-}
-
-function blocksFrom(text,prefix){
-return text
-.split(new RegExp("###"+prefix+"_\\d+###","i"))
-.map(x=>x.trim())
-.filter(Boolean);
+return text.replace(/[|]/g," ").replace(/\r/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
 }
 
 function cleanLine(line){
-return line
-.replace(/[<>£©]/g,"")
-.replace(/\s+/g," ")
-.trim();
+return line.replace(/[<>£©]/g,"").replace(/\s+/g," ").trim();
+}
+
+function cleanName(text){
+let lines=text.split("\n").map(cleanLine).filter(Boolean);
+lines=lines.filter(l=>{
+const x=l.toLowerCase();
+return !x.includes("job details")&&!x.includes("confirmed")&&!x.includes("phone")&&!x.includes("email");
+});
+return lines[0]||"";
+}
+
+function cleanService(text){
+const lower=text.toLowerCase();
+for(const s of services){
+if(lower.includes(s.toLowerCase())) return s;
+}
+let lines=text.split("\n").map(cleanLine).filter(Boolean);
+return lines[0]||"";
+}
+
+function cleanConcernLine(line){
+return line.replace(/^[-•*·\s]+/,"").replace(/\s+/g," ").trim();
 }
 
 function isJunk(line){
-
 const l=line.toLowerCase();
-
-return (
-!line ||
-l.includes("new feature") ||
-l.includes("tipping") ||
-l.includes("learn more") ||
-l.includes("microphone") ||
-l.includes("confirmed") ||
-l.includes("show change logs") ||
-l.includes("attach a photo") ||
-l.includes("todo list") ||
-l.includes("top note") ||
-l.includes("@") ||
-/\d{3}[-.\s]\d{3}[-.\s]\d{4}/.test(line)
-);
-
+return !line || l.includes("new feature") || l.includes("tipping") || l.includes("learn more") ||
+l.includes("microphone") || l.includes("show change logs") || l.includes("attach a photo") ||
+l.includes("top note") || l.includes("todo list") || l.includes("@") ||
+/\d{3}[-.\s]\d{3}[-.\s]\d{4}/.test(line);
 }
 
-function extractTimes(block){
-
-const matches=
-block.match(/\d{1,2}:\d{2}\s?(?:AM|PM)/gi)||[];
-
-return [...new Set(
-matches.map(t=>
-t.toUpperCase().replace(/\s+/g," ")
-)
-)];
-
+function fileToImage(file){
+return new Promise((resolve,reject)=>{
+const img=new Image();
+img.onload=()=>resolve(img);
+img.onerror=reject;
+img.src=URL.createObjectURL(file);
+});
 }
 
-/*
-NEW EXTRACTION LOGIC
+function cropImageToCanvas(img,zone,scale=2.5){
+const canvas=document.createElement("canvas");
+const sx=img.width*zone.x;
+const sy=img.height*zone.y;
+const sw=img.width*zone.w;
+const sh=img.height*zone.h;
+canvas.width=sw*scale;
+canvas.height=sh*scale;
+const ctx=canvas.getContext("2d");
+ctx.fillStyle="white";
+ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
 
-Instead of trying to guess where the
-customer/service is, we use the layout
-of GorillaDesk Job Details.
-
-Customer Name:
-line immediately after "Job Details"
-
-Service Type:
-first matching service below customer
-*/
-
-function extractCustomer(block){
-
-const lines=
-block.split("\n")
-.map(cleanLine)
-.filter(Boolean);
-
-for(let i=0;i<lines.length;i++){
-
-if(lines[i].toLowerCase().includes("job details")){
-
-for(let j=i+1;j<lines.length;j++){
-
-const line=lines[j];
-
-if(isJunk(line)) continue;
-
-if(line.length<3) continue;
-
-if(/^\d/.test(line)) continue;
-
-return line;
+const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+const d=imageData.data;
+for(let i=0;i<d.length;i+=4){
+const gray=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+const val=gray>170?255:0;
+d[i]=d[i+1]=d[i+2]=val;
 }
-}
+ctx.putImageData(imageData,0,0);
+return canvas;
 }
 
-return "";
+async function ocrCanvas(canvas){
+const result=await Tesseract.recognize(canvas,"eng");
+return cleanOCR(result.data.text||"");
 }
 
-function extractService(block){
+async function runRouteOCR(){
+const files=[...document.getElementById("routeUpload").files];
+const status=document.getElementById("routeStatus");
+if(!files.length){status.textContent="Upload screenshots first.";return;}
 
-const lines=
-block.split("\n")
-.map(cleanLine)
-.filter(Boolean);
+routeStops=[];
+serviceListData=[];
+let review="";
 
-for(const line of lines){
+for(let i=0;i<files.length;i++){
+status.textContent=`Reading Job Details ${i+1} of ${files.length}...`;
 
-const lower=line.toLowerCase();
+const img=await fileToImage(files[i]);
+const nameText=await ocrCanvas(cropImageToCanvas(img,CROP_ZONES.jobName));
+const serviceText=await ocrCanvas(cropImageToCanvas(img,CROP_ZONES.jobService));
 
-for(const service of services){
+const customer=cleanName(nameText);
+const service=cleanService(serviceText);
 
-if(lower.includes(service.toLowerCase())){
-return service;
-}
+review+=`\n\n### ROUTE_${i+1} ###\n`;
+review+=`CUSTOMER CROP:\n${nameText}\n\n`;
+review+=`SERVICE CROP:\n${serviceText}\n\n`;
+review+=`DETECTED: ${customer} - ${service}\n`;
 
+if(customer&&service){
+routeStops.push({customer,service,times:[]});
+serviceListData.push({customer,service});
 }
 }
 
-return "";
+document.getElementById("routeOCRText").value=review.trim();
+status.textContent="Crop OCR complete. Generate note.";
+}async function runConcernOCR(){
+const files=[...document.getElementById("concernUpload").files];
+const status=document.getElementById("concernStatus");
+if(!files.length){status.textContent="Upload screenshots first.";return;}
+
+concernData=[];
+let review="";
+
+for(let i=0;i<files.length;i+=2){
+status.textContent=`Reading concern set ${Math.floor(i/2)+1}...`;
+
+const jobFile=files[i];
+const notesFile=files[i+1];
+
+if(!jobFile||!notesFile) continue;
+
+const jobImg=await fileToImage(jobFile);
+const notesImg=await fileToImage(notesFile);
+
+const nameText=await ocrCanvas(cropImageToCanvas(jobImg,CROP_ZONES.jobName));
+const serviceText=await ocrCanvas(cropImageToCanvas(jobImg,CROP_ZONES.jobService));
+const concernText=await ocrCanvas(cropImageToCanvas(notesImg,CROP_ZONES.notesConcern));
+
+const customer=cleanName(nameText);
+const service=cleanService(serviceText);
+const concerns=extractCustomerConcernBoxOnly(concernText);
+
+review+=`\n\n### CONCERN_SET_${Math.floor(i/2)+1} ###\n`;
+review+=`CUSTOMER CROP:\n${nameText}\n\n`;
+review+=`SERVICE CROP:\n${serviceText}\n\n`;
+review+=`CONCERN CROP:\n${concernText}\n\n`;
+review+=`DETECTED CUSTOMER: ${customer}\n`;
+review+=`DETECTED SERVICE: ${service}\n`;
+review+=`DETECTED CONCERNS:\n${concerns.join("\n")}\n`;
+
+if(customer&&concerns.length){
+concernData.push({customer,service,concerns});
+}
+}
+
+document.getElementById("concernOCRText").value=review.trim();
+status.textContent="Concern crop OCR complete. Generate notes.";
+}
+
+function extractCustomerConcernBoxOnly(text){
+const lines=text.split("\n").map(cleanLine).filter(Boolean);
+const concerns=[];
+let capture=false;
+
+for(let raw of lines){
+let line=raw.trim();
+let lower=line.toLowerCase();
+
+if(lower.includes("property estimation")) break;
+
+if(!capture&&lower.includes("customer concern")){
+capture=true;
+line=line.replace(/[-•*·\s]*customer concern[s]?:?/i,"").trim();
+if(line&&!isJunk(line)) concerns.push(cleanConcernLine(line));
+continue;
+}
+
+if(capture){
+if(line.length>1&&line.length<180&&!isJunk(line)){
+concerns.push(cleanConcernLine(line));
+}
+}else{
+if(line.startsWith("-")||line.startsWith("•")){
+if(!lower.includes("customer concern")&&!lower.includes("property estimation")){
+concerns.push(cleanConcernLine(line));
+}
+}
+}
+}
+
+return [...new Set(concerns)].filter(Boolean);
 }
 
 function buildRouteStops(){
+return routeStops;
+}
 
-const text=
-document.getElementById("routeOCRText").value;
-
-const blocks=
-blocksFrom(text,"ROUTE");
-
-const stops=[];
-const seen=new Set();
-
-serviceListData=[];
-
-blocks.forEach((block,index)=>{
-
-const customer=extractCustomer(block);
-const service=extractService(block);
-const times=extractTimes(block);
-
-if(!customer || !service) return;
-
-const key=
-(customer+"|"+service+"|"+index)
-.toLowerCase();
-
-if(seen.has(key)) return;
-
-seen.add(key);
-
-stops.push({
-customer,
-service,
-times
-});
-
-serviceListData.push({
-customer,
-service
-});
-
-});
-
-routeStops=stops;
-
-return stops;
-}function formatList(items){
+function formatList(items){
 if(items.length===1) return items[0]+".";
 if(items.length===2) return items[0]+" and "+items[1]+".";
 return items.slice(0,-1).join(", ")+", and "+items[items.length-1]+".";
 }
 
 function generateRouteNote(){
-
 const stops=buildRouteStops();
 
 if(!stops.length){
-
-document.getElementById("routeOutput").value=
-"No clean customer/service pairs were detected.";
-
-document.getElementById("serviceListOutput").value=
-"No service list available.";
-
+document.getElementById("serviceListOutput").value="No service list available.";
+document.getElementById("routeOutput").value="No clean customer/service pairs were detected.";
 return;
 }
 
-/* SERVICE LIST */
-
 document.getElementById("serviceListOutput").value=
-serviceListData
-.map(x=>`${x.customer} - ${x.service}`)
-.join("\n");
-
-/* EOD NOTE */
+serviceListData.map(x=>`${x.customer} - ${x.service}`).join("\n");
 
 document.getElementById("routeOutput").value=
-formatList(
-stops.map(
-s=>`${s.customer} – ${s.service}`
-)
-);
-
-}
-
-function timeMatchScore(a,b){
-
-let score=0;
-
-for(const t of a){
-if(b.includes(t)) score++;
-}
-
-return score;
-}
-
-function matchCustomerByTimes(times){
-
-if(!routeStops.length){
-buildRouteStops();
-}
-
-let best="Unknown Customer";
-let bestScore=0;
-
-for(const stop of routeStops){
-
-const score=
-timeMatchScore(
-times,
-stop.times||[]
-);
-
-if(score>bestScore){
-
-bestScore=score;
-best=stop.customer;
-
-}
-}
-
-return bestScore>=1
-? best
-: "Unknown Customer";
-}
-
-function looksLikeJobDetails(block){
-
-return (
-block.toLowerCase().includes("job details")
-&& extractCustomer(block)
-);
-
-}
-
-function cleanConcernLine(line){
-
-return line
-.replace(/^[-•*·\s]+/,"")
-.replace(/\s+/g," ")
-.trim();
-
-}
-
-function extractCustomerConcernBoxOnly(block){
-
-const lines=
-block.split("\n")
-.map(cleanLine)
-.filter(Boolean);
-
-const concerns=[];
-
-let capture=false;
-
-for(const raw of lines){
-
-const line=raw.trim();
-const lower=line.toLowerCase();
-
-if(
-!capture &&
-lower.includes("customer concern")
-){
-
-capture=true;
-
-let cleaned=line
-.replace(/customer concern[s]?:?/i,"")
-.trim();
-
-if(cleaned){
-concerns.push(
-cleanConcernLine(cleaned)
-);
-}
-
-continue;
-}
-
-if(capture){
-
-/* STOP AT PROPERTY ESTIMATION */
-
-if(
-lower.includes("property estimation")
-){
-break;
-}
-
-if(
-line.length>1 &&
-line.length<180 &&
-!isJunk(line)
-){
-concerns.push(
-cleanConcernLine(line)
-);
-}
-
-}
-
-}
-
-return [...new Set(concerns)]
-.filter(Boolean);
-
+formatList(stops.map(s=>`${s.customer} – ${s.service}`));
 }
 
 function generateOfficeNote(){
-
-const text=
-document.getElementById("concernOCRText").value;
-
-const blocks=
-blocksFrom(text,"CONCERN");
-
-if(!blocks.length){
-
-document.getElementById("officeOutput").value=
-"Upload concern screenshots first.";
-
+if(!concernData.length){
+document.getElementById("customerConcernOutput").value="No customer concerns detected.";
+document.getElementById("officeOutput").value="No customer concerns detected.";
 return;
 }
 
-let officeNote=
-"Customer Concerns / Office Follow-Up Items:\n\n";
-
 let concernOutput="";
+let officeNote="Customer Concerns / Office Follow-Up Items:\n\n";
 
-let found=false;
-
-for(let i=0;i<blocks.length;i++){
-
-let customer="";
-let noteBlock=blocks[i];
-
-if(
-looksLikeJobDetails(blocks[i])
-){
-
-customer=
-extractCustomer(blocks[i]);
-
-if(blocks[i+1]){
-
-noteBlock=blocks[i+1];
-i++;
-
-}
-
-}else{
-
-customer=
-matchCustomerByTimes(
-extractTimes(blocks[i])
-);
-
-}
-
-const concerns=
-extractCustomerConcernBoxOnly(
-noteBlock
-);
-
-if(concerns.length){
-
-found=true;
-
-/* CUSTOMER CONCERN OUTPUT */
-
-concernOutput+=
-`${customer}\n`;
-
-concerns.forEach(c=>{
-concernOutput+=`${c}\n`;
-});
-
+for(const item of concernData){
+concernOutput+=`${item.customer}\n`;
+item.concerns.forEach(c=>concernOutput+=`${c}\n`);
 concernOutput+="\n";
 
-/* OFFICE NOTE OUTPUT */
-
-officeNote+=
-`${customer}:\n`;
-
-concerns.forEach(c=>{
-officeNote+=`• ${c}\n`;
-});
-
+officeNote+=`${item.customer}:\n`;
+item.concerns.forEach(c=>officeNote+=`• ${c}\n`);
 officeNote+="\n";
-
 }
 
-}
-
-if(!found){
-
-concernOutput=
-"No customer concerns detected.";
-
-officeNote+=
-"No customer concerns detected.";
-
-}
-
-document.getElementById(
-"customerConcernOutput"
-).value=
-concernOutput.trim();
-
-document.getElementById(
-"officeOutput"
-).value=
-officeNote.trim();
-
+document.getElementById("customerConcernOutput").value=concernOutput.trim();
+document.getElementById("officeOutput").value=officeNote.trim();
 }
 
 function generateSupplyNote(){
-
-const checked=
-[...document.querySelectorAll(
-'#supplies input[type="checkbox"]:checked'
-)]
-.map(x=>x.value);
-
-const extra=
-document.getElementById(
-"extraSupplies"
-)
-.value
-.split("\n")
-.map(x=>x.trim())
-.filter(Boolean);
-
-const items=[
-...checked,
-...extra
-];
+const checked=[...document.querySelectorAll('#supplies input[type="checkbox"]:checked')].map(x=>x.value);
+const extra=document.getElementById("extraSupplies").value.split("\n").map(x=>x.trim()).filter(Boolean);
+const items=[...checked,...extra];
 
 if(!items.length){
-
-document.getElementById(
-"supplyOutput"
-).value=
-"Truck Needs / Supplies Low:\n\nNo supplies selected.";
-
+document.getElementById("supplyOutput").value="Truck Needs / Supplies Low:\n\nNo supplies selected.";
 return;
 }
 
-document.getElementById(
-"supplyOutput"
-).value=
-"Truck Needs / Supplies Low:\n\n"+
-items.map(
-i=>"• "+i
-).join("\n")+
-"\n\nPlease restock when available.";
-
+document.getElementById("supplyOutput").value=
+"Truck Needs / Supplies Low:\n\n"+items.map(i=>"• "+i).join("\n")+"\n\nPlease restock when available.";
 }
 
 function copyText(id){
-
-const box=
-document.getElementById(id);
-
-if(!box.value.trim()){
-
-alert("Nothing to copy yet.");
-return;
-
-}
-
-navigator.clipboard
-.writeText(box.value)
-.then(()=>{
-alert("Copied.");
-})
-.catch(()=>{
-
+const box=document.getElementById(id);
+if(!box.value.trim()){alert("Nothing to copy yet.");return;}
+navigator.clipboard.writeText(box.value).then(()=>alert("Copied.")).catch(()=>{
 box.select();
 document.execCommand("copy");
 alert("Copied.");
-
 });
-
 }
 </script>
 
