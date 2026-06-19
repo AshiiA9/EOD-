@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pest Tech End-of-Day Notes</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
 <style>
 :root{--blue:#0ea5e9;--pink:#ec4899;--bg:#f4f8fc;--card:#fff;--text:#1f2937;--border:#dbe4ee}
 *{box-sizing:border-box}
@@ -20,20 +19,20 @@ body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,
 .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:15px;box-shadow:0 3px 10px rgba(0,0,0,.05)}
 h2{margin-top:0}
 input[type=file]{width:100%;padding:14px;border:2px dashed var(--border);border-radius:12px}
-textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px solid var(--border);font-size:16px}
+textarea{width:100%;min-height:190px;padding:14px;border-radius:12px;border:1px solid var(--border);font-size:16px}
 .btn{width:100%;margin-top:10px;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--pink));color:white;font-size:17px;font-weight:800}
 .status{font-weight:700;color:#8b5cf6;margin-top:10px}
 .check-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .check-item{border:1px solid var(--border);border-radius:12px;padding:10px;background:#f9fbfd}
-.small-note{font-size:14px;color:#6b7280;margin-top:6px}
+.small-note{font-size:14px;color:#6b7280}
 @media(max-width:700px){.tabs,.check-grid{grid-template-columns:1fr}}
 </style>
 </head>
-
 <body>
+
 <div class="header">
 <h1>Pest Tech End-of-Day Notes</h1>
-<p>Upload GorillaDesk screenshots → crop-zone OCR → generate route, concern, and truck notes.</p>
+<p>Upload GorillaDesk screenshots → OCR → generate route, concern, and truck notes.</p>
 </div>
 
 <div class="container">
@@ -47,7 +46,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <div id="route" class="tab active">
 <div class="card">
 <h2>End-of-Day Route Screenshots</h2>
-<p>Upload Job Details screenshots only. The app now reads only the saved black-box areas for customer name and service type.</p>
+<p>Upload Job Details screenshots only.</p>
 <input id="routeUpload" type="file" accept="image/*" multiple>
 <button class="btn" onclick="runRouteOCR()">Extract Route Stops</button>
 <div id="routeStatus" class="status"></div>
@@ -61,7 +60,6 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 
 <div class="card">
 <h2>Service List</h2>
-<p class="small-note">Customer name and service type only.</p>
 <textarea id="serviceListOutput"></textarea>
 <button class="btn" onclick="copyText('serviceListOutput')">Copy Service List</button>
 </div>
@@ -76,7 +74,7 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <div id="office" class="tab">
 <div class="card">
 <h2>Customer Concerns / Notes Screenshots</h2>
-<p>Upload Job Details screenshot first, then Notes screenshot for the same customer. Repeat for each customer.</p>
+<p>Upload Job Details screenshot first, then Notes screenshot for the same customer.</p>
 <input id="concernUpload" type="file" accept="image/*" multiple>
 <button class="btn" onclick="runConcernOCR()">Extract Customer Concerns</button>
 <div id="concernStatus" class="status"></div>
@@ -100,10 +98,10 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <button class="btn" onclick="copyText('officeOutput')">Copy Office Note</button>
 </div>
 </div>
+
 <div id="supplies" class="tab">
 <div class="card">
 <h2>Truck Needs / Supplies Low</h2>
-
 <div class="check-grid">
 <div class="check-item"><label><input type="checkbox" value="Alpine WSG"> Alpine WSG</label></div>
 <div class="check-item"><label><input type="checkbox" value="CrossCheck Plus"> CrossCheck Plus</label></div>
@@ -123,7 +121,6 @@ textarea{width:100%;min-height:210px;padding:14px;border-radius:12px;border:1px 
 <div class="check-item"><label><input type="checkbox" value="Tri-Die / Tri-Dust"> Tri-Die / Tri-Dust</label></div>
 <div class="check-item"><label><input type="checkbox" value="Wasp & Hornet Spray"> Wasp & Hornet Spray</label></div>
 </div>
-
 <textarea id="extraSupplies" placeholder="Add anything else here, one item per line."></textarea>
 <button class="btn" onclick="generateSupplyNote()">Generate Truck Needs Note</button>
 <textarea id="supplyOutput"></textarea>
@@ -145,12 +142,6 @@ const services=[
 "Bed Bug Service","Bed Bug","Inspection","Callback"
 ];
 
-const CROP_ZONES={
-jobName:{x:.04,y:.165,w:.72,h:.055},
-jobService:{x:.04,y:.275,w:.72,h:.055},
-notesConcern:{x:.03,y:.185,w:.94,h:.33}
-};
-
 function showTab(id,btn){
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
@@ -158,42 +149,12 @@ document.getElementById(id).classList.add("active");
 btn.classList.add("active");
 }
 
-function cleanOCR(text){
-return text.replace(/[|]/g," ").replace(/\r/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
-}
-
 function cleanLine(line){
-return line.replace(/[<>£©]/g,"").replace(/\s+/g," ").trim();
+return String(line||"").replace(/[<>£©|]/g,"").replace(/\s+/g," ").trim();
 }
 
-function cleanName(text){
-let lines=text.split("\n").map(cleanLine).filter(Boolean);
-lines=lines.filter(l=>{
-const x=l.toLowerCase();
-return !x.includes("job details")&&!x.includes("confirmed")&&!x.includes("phone")&&!x.includes("email");
-});
-return lines[0]||"";
-}
-
-function cleanService(text){
-const lower=text.toLowerCase();
-for(const s of services){
-if(lower.includes(s.toLowerCase())) return s;
-}
-let lines=text.split("\n").map(cleanLine).filter(Boolean);
-return lines[0]||"";
-}
-
-function cleanConcernLine(line){
-return line.replace(/^[-•*·\s]+/,"").replace(/\s+/g," ").trim();
-}
-
-function isJunk(line){
-const l=line.toLowerCase();
-return !line || l.includes("new feature") || l.includes("tipping") || l.includes("learn more") ||
-l.includes("microphone") || l.includes("show change logs") || l.includes("attach a photo") ||
-l.includes("top note") || l.includes("todo list") || l.includes("@") ||
-/\d{3}[-.\s]\d{3}[-.\s]\d{4}/.test(line);
+function cleanOCR(text){
+return String(text||"").replace(/\r/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
 }
 
 function fileToImage(file){
@@ -205,33 +166,33 @@ img.src=URL.createObjectURL(file);
 });
 }
 
-function cropImageToCanvas(img,zone,scale=2.5){
-const canvas=document.createElement("canvas");
-const sx=img.width*zone.x;
-const sy=img.height*zone.y;
-const sw=img.width*zone.w;
-const sh=img.height*zone.h;
-canvas.width=sw*scale;
-canvas.height=sh*scale;
-const ctx=canvas.getContext("2d");
-ctx.fillStyle="white";
-ctx.fillRect(0,0,canvas.width,canvas.height);
-ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
-
-const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-const d=imageData.data;
-for(let i=0;i<d.length;i+=4){
-const gray=.299*d[i]+.587*d[i+1]+.114*d[i+2];
-const val=gray>170?255:0;
-d[i]=d[i+1]=d[i+2]=val;
-}
-ctx.putImageData(imageData,0,0);
-return canvas;
-}
-
-async function ocrCanvas(canvas){
-const result=await Tesseract.recognize(canvas,"eng");
+async function runOCR(file){
+const result=await Tesseract.recognize(file,"eng");
 return cleanOCR(result.data.text||"");
+}
+
+function extractCustomer(text){
+const lines=text.split("\n").map(cleanLine).filter(Boolean);
+for(let i=0;i<lines.length;i++){
+if(lines[i].toLowerCase().includes("job details")){
+for(let j=i+1;j<lines.length;j++){
+let l=lines[j];
+let x=l.toLowerCase();
+if(x.includes("phone")||x.includes("email")||x.includes("address")||x.includes("confirmed")) continue;
+if(services.some(s=>x.includes(s.toLowerCase()))) continue;
+if(l.length>2&&l.length<70&&!/^\d/.test(l)) return l;
+}
+}
+}
+return "";
+}
+
+function extractService(text){
+const lower=text.toLowerCase();
+for(const s of services){
+if(lower.includes(s.toLowerCase())) return s;
+}
+return "";
 }
 
 async function runRouteOCR(){
@@ -244,29 +205,26 @@ serviceListData=[];
 let review="";
 
 for(let i=0;i<files.length;i++){
-status.textContent=`Reading Job Details ${i+1} of ${files.length}...`;
+status.textContent=`Reading screenshot ${i+1} of ${files.length}...`;
+const text=await runOCR(files[i]);
 
-const img=await fileToImage(files[i]);
-const nameText=await ocrCanvas(cropImageToCanvas(img,CROP_ZONES.jobName));
-const serviceText=await ocrCanvas(cropImageToCanvas(img,CROP_ZONES.jobService));
+const customer=extractCustomer(text);
+const service=extractService(text);
 
-const customer=cleanName(nameText);
-const service=cleanService(serviceText);
-
-review+=`\n\n### ROUTE_${i+1} ###\n`;
-review+=`CUSTOMER CROP:\n${nameText}\n\n`;
-review+=`SERVICE CROP:\n${serviceText}\n\n`;
-review+=`DETECTED: ${customer} - ${service}\n`;
+review+=`\n\n### ROUTE_${i+1} ###\n${text}\n\nDETECTED: ${customer} - ${service}\n`;
 
 if(customer&&service){
-routeStops.push({customer,service,times:[]});
+routeStops.push({customer,service});
 serviceListData.push({customer,service});
 }
 }
 
 document.getElementById("routeOCRText").value=review.trim();
-status.textContent="Crop OCR complete. Generate note.";
-}async function runConcernOCR(){
+status.textContent="OCR complete. Generate note.";
+generateRouteNote();
+}
+
+async function runConcernOCR(){
 const files=[...document.getElementById("concernUpload").files];
 const status=document.getElementById("concernStatus");
 if(!files.length){status.textContent="Upload screenshots first.";return;}
@@ -275,77 +233,64 @@ concernData=[];
 let review="";
 
 for(let i=0;i<files.length;i+=2){
+const jobFile=files[i];
+const noteFile=files[i+1];
+if(!jobFile||!noteFile) continue;
+
 status.textContent=`Reading concern set ${Math.floor(i/2)+1}...`;
 
-const jobFile=files[i];
-const notesFile=files[i+1];
+const jobText=await runOCR(jobFile);
+const noteText=await runOCR(noteFile);
 
-if(!jobFile||!notesFile) continue;
-
-const jobImg=await fileToImage(jobFile);
-const notesImg=await fileToImage(notesFile);
-
-const nameText=await ocrCanvas(cropImageToCanvas(jobImg,CROP_ZONES.jobName));
-const serviceText=await ocrCanvas(cropImageToCanvas(jobImg,CROP_ZONES.jobService));
-const concernText=await ocrCanvas(cropImageToCanvas(notesImg,CROP_ZONES.notesConcern));
-
-const customer=cleanName(nameText);
-const service=cleanService(serviceText);
-const concerns=extractCustomerConcernBoxOnly(concernText);
+const customer=extractCustomer(jobText)||"Unknown Customer";
+const service=extractService(jobText);
+const concerns=extractConcerns(noteText);
 
 review+=`\n\n### CONCERN_SET_${Math.floor(i/2)+1} ###\n`;
-review+=`CUSTOMER CROP:\n${nameText}\n\n`;
-review+=`SERVICE CROP:\n${serviceText}\n\n`;
-review+=`CONCERN CROP:\n${concernText}\n\n`;
+review+=`JOB DETAILS TEXT:\n${jobText}\n\n`;
+review+=`NOTES TEXT:\n${noteText}\n\n`;
 review+=`DETECTED CUSTOMER: ${customer}\n`;
 review+=`DETECTED SERVICE: ${service}\n`;
 review+=`DETECTED CONCERNS:\n${concerns.join("\n")}\n`;
 
-if(customer&&concerns.length){
+if(concerns.length){
 concernData.push({customer,service,concerns});
 }
 }
 
 document.getElementById("concernOCRText").value=review.trim();
-status.textContent="Concern crop OCR complete. Generate notes.";
+status.textContent="OCR complete. Generate notes.";
+generateOfficeNote();
 }
 
-function extractCustomerConcernBoxOnly(text){
+function extractConcerns(text){
 const lines=text.split("\n").map(cleanLine).filter(Boolean);
-const concerns=[];
+const out=[];
 let capture=false;
 
-for(let raw of lines){
-let line=raw.trim();
+for(let line of lines){
 let lower=line.toLowerCase();
 
 if(lower.includes("property estimation")) break;
 
-if(!capture&&lower.includes("customer concern")){
+if(lower.includes("customer concern")){
 capture=true;
 line=line.replace(/[-•*·\s]*customer concern[s]?:?/i,"").trim();
-if(line&&!isJunk(line)) concerns.push(cleanConcernLine(line));
+if(line) out.push(cleanConcernLine(line));
 continue;
 }
 
 if(capture){
-if(line.length>1&&line.length<180&&!isJunk(line)){
-concerns.push(cleanConcernLine(line));
-}
-}else{
-if(line.startsWith("-")||line.startsWith("•")){
-if(!lower.includes("customer concern")&&!lower.includes("property estimation")){
-concerns.push(cleanConcernLine(line));
-}
-}
+if(lower.includes("knocked")||lower.includes("materials")||lower.includes("tasks")) continue;
+if(line.length>1&&line.length<180) out.push(cleanConcernLine(line));
 }
 }
 
-return [...new Set(concerns)].filter(Boolean);
+return [...new Set(out)].filter(Boolean);
 }
 
-function buildRouteStops(){
-return routeStops;
+function cleanConcernLine(line){
+return line.replace(/^[-•*·\s]+/,"").replace(/\s+/g," ").trim();
 }
 
 function formatList(items){
@@ -355,9 +300,7 @@ return items.slice(0,-1).join(", ")+", and "+items[items.length-1]+".";
 }
 
 function generateRouteNote(){
-const stops=buildRouteStops();
-
-if(!stops.length){
+if(!routeStops.length){
 document.getElementById("serviceListOutput").value="No service list available.";
 document.getElementById("routeOutput").value="No clean customer/service pairs were detected.";
 return;
@@ -367,7 +310,7 @@ document.getElementById("serviceListOutput").value=
 serviceListData.map(x=>`${x.customer} - ${x.service}`).join("\n");
 
 document.getElementById("routeOutput").value=
-formatList(stops.map(s=>`${s.customer} – ${s.service}`));
+formatList(routeStops.map(s=>`${s.customer} – ${s.service}`));
 }
 
 function generateOfficeNote(){
