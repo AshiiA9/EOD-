@@ -119,24 +119,18 @@ const services=[
 ];
 
 const recommendationLibrary=[
-{keys:["leaf accumulation","leaf buildup","leaf build up","leaf litter","leaves around","heavy leaves","organic debris"],rec:"Remove accumulated leaves and organic debris from around the structure to reduce moisture retention and pest harborage areas."},
-{keys:["stored debris","stored materials","excess storage","materials against structure","unused materials","items stored outside"],rec:"Remove or organize stored materials to reduce sheltered areas that may support pest activity."},
-{keys:["vegetation","shrubs touching","bushes touching","plants touching","overgrown vegetation","landscaping touching","vegetation too close"],rec:"Trim vegetation away from the structure to improve airflow and reduce pest access routes."},
-{keys:["tree limbs","tree branches","host trees","branches over roof","limbs over roof","trees contacting"],rec:"Trim tree limbs away from the structure to reduce pest access routes and moisture retention."},
-{keys:["standing water","water pooling","water accumulation","pooled water","water holding"],rec:"Eliminate standing water sources to reduce mosquito breeding and moisture-related pest activity."},
-{keys:["poor drainage","drainage issue","water runoff","water collecting","poor grade"],rec:"Improve drainage around the structure to reduce excessive moisture conditions that may support pest activity."},
-{keys:["leaking water","water leak","spigot leak","hose bib leak","plumbing leak","dripping water"],rec:"Repair leaking water sources to eliminate moisture conditions favorable to pest activity."},
-{keys:["trash buildup","trash accumulation","garbage accumulation","overflowing trash","waste accumulation"],rec:"Maintain covered waste containers and remove accumulated waste materials to reduce pest attractants."},
-{keys:["firewood","wood pile","wood stacked"],rec:"Store firewood elevated and away from the structure to reduce pest harborage."},
-{keys:["cardboard","cardboard storage","stored cardboard","cardboard boxes"],rec:"Reduce cardboard storage where practical and keep stored materials elevated to limit pest harborage."},
-{keys:["moisture","excess moisture","high moisture","damp conditions","moist conditions"],rec:"Reduce excess moisture through ventilation, drainage improvements, and corrective repairs where needed."},
-{keys:["foundation gap","entry point","exterior gap","utility gap","gap around"],rec:"Seal accessible entry points and exterior gaps to reduce pest entry opportunities."},
-{keys:["mulch","deep mulch","mulch against foundation","mulch touching"],rec:"Keep mulch pulled back from the foundation and avoid excessive mulch depth to reduce moisture retention and pest harborage."},
-{keys:["gutter","gutters","downspout","clogged gutters","overflowing gutters"],rec:"Clean gutters and direct downspouts away from the structure to reduce moisture accumulation near the foundation."},
-{keys:["crawlspace","crawl space","crawlspace moisture","wet crawlspace"],rec:"Address crawlspace moisture through proper ventilation, drainage correction, and moisture management where needed."},
-{keys:["pet food","food left outside","outdoor pet food"],rec:"Avoid leaving pet food outdoors for extended periods and store food in sealed containers."},
-{keys:["bird feeder","bird seed","spilled bird seed"],rec:"Keep bird feeding areas clean and remove spilled seed regularly to reduce rodent and insect attractants."},
-{keys:["neighbor","infested neighbors","neighbor infestation","adjacent infestation"],rec:"Continue monitoring and maintain exterior preventive measures due to nearby pest pressure."}
+{keys:["shed","around shed","conducive conditions around shed"],rec:"Reduce harborage around the shed by removing leaf accumulation, stored debris, and moisture sources where possible.",mon:"Monitor the shed area for recurring moisture, stored debris, and pest activity."},
+{keys:["leaf accumulation","leaf buildup","leaf build up","leaf litter","leaves around","heavy leaves","organic debris"],rec:"Remove accumulated leaves and organic debris to reduce moisture retention and pest harborage.",mon:"Monitor the area for recurring leaf buildup after wind or rainfall."},
+{keys:["stored debris","stored materials","excess storage","materials against structure","unused materials","items stored outside"],rec:"Remove or organize stored materials to reduce pest sheltering areas.",mon:"Monitor stored areas for renewed pest activity."},
+{keys:["vegetation","shrubs touching","bushes touching","plants touching","overgrown vegetation","vegetation too close"],rec:"Trim vegetation away from the structure to reduce pest access and improve airflow.",mon:"Monitor trimmed areas for regrowth contacting the structure."},
+{keys:["standing water","water pooling","water accumulation","pooled water"],rec:"Eliminate standing water to reduce mosquito breeding and moisture-related pest activity.",mon:"Monitor this area after rainfall for recurring water collection."},
+{keys:["poor drainage","drainage issue","water runoff","water collecting"],rec:"Improve drainage to reduce excess moisture near the structure.",mon:"Monitor drainage after rainfall to confirm water is moving away properly."},
+{keys:["leaking water","water leak","spigot leak","hose bib leak","plumbing leak"],rec:"Repair the leak to remove moisture conditions that may support pest activity.",mon:"Monitor the repaired area for continued moisture."},
+{keys:["trash buildup","trash accumulation","garbage accumulation","overflowing trash"],rec:"Keep waste contained and remove accumulated trash to reduce pest attractants.",mon:"Monitor waste areas for pest activity."},
+{keys:["tree limbs","tree branches","host trees","branches over roof","limbs over roof"],rec:"Trim limbs away from the structure to reduce pest access routes.",mon:"Monitor tree contact points for renewed access."},
+{keys:["mulch","deep mulch","mulch against foundation"],rec:"Keep mulch pulled back from the foundation to reduce moisture and harborage.",mon:"Monitor mulch depth and moisture near the foundation."},
+{keys:["foundation gap","entry point","exterior gap","utility gap"],rec:"Seal accessible exterior gaps to reduce pest entry opportunities.",mon:"Monitor sealed areas for new gaps or activity."},
+{keys:["neighbor","infested neighbors","neighbor infestation","adjacent infestation"],rec:"Maintain exterior preventive measures due to nearby pest pressure.",mon:"Monitor activity levels during future services."}
 ];
 
 function showTab(id,btn){
@@ -260,14 +254,17 @@ for(const s of services){if(lower.includes(s.toLowerCase())) return s;}
 return "";
 }
 
-function getRecommendation(note){
+function getRecommendationItem(note){
 const lower=note.toLowerCase();
 for(const item of recommendationLibrary){
 for(const key of item.keys){
-if(lower.includes(key)) return item.rec;
+if(lower.includes(key)) return item;
 }
 }
-return "Continue reducing food, water, moisture, harborage, and exterior access points as part of an integrated pest management approach.";
+return {
+rec:"Reduce food, water, moisture, harborage, and access points related to the noted condition.",
+mon:"Monitor the noted area for recurring conducive conditions and pest activity."
+};
 }
 
 function getStarLevel(note){
@@ -279,14 +276,28 @@ return 0;
 
 function formatOfficeNoteLine(note){
 const starLevel=getStarLevel(note);
-const cleanNote=note.replace(/\s*\*\s*\*\s*\*/g,"").replace(/\s*\*\s*\*/g,"").trim();
+
+const cleanNote=note
+.replace(/\s*\*\s*\*\s*\*/g,"")
+.replace(/\s*\*\s*\*/g,"")
+.replace(/^[-•*·\s]+/,"")
+.replace(/customer concern[s]?:?/i,"")
+.trim();
+
+if(!cleanNote) return "";
+
+const item=getRecommendationItem(cleanNote);
+
 let output=`• ${cleanNote}\n`;
+
 if(starLevel>=2){
-output+=`• Recommendation: ${getRecommendation(cleanNote)}\n`;
+output+=`• Recommendation: ${item.rec}\n`;
 }
+
 if(starLevel>=3){
-output+=`• Monitoring Note: Continue monitoring this area for recurring conducive conditions and pest activity.\n`;
+output+=`• Monitoring Note: ${item.mon}\n`;
 }
+
 return output;
 }
 
